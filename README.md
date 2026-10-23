@@ -11,11 +11,7 @@
   [OpenCode Go](https://opencode.ai/docs/go) subscription. They show in the `/model` picker
   next to Opus, Sonnet and Haiku, and you can change model in the middle of a session.
 
-```
-claude       ---------------------------------------------> api.anthropic.com
-claude-lite  --> HTTPS proxy --> headers shim :4001 --> LiteLLM --+--> api.anthropic.com  (your login token)
-                                                                  +--> opencode.ai Go      (Go API key)
-```
+![claude goes direct to Anthropic; claude-lite goes through the headers shim and LiteLLM to Anthropic or OpenCode Go](./docs/routes.svg)
 
 **Why.**
 

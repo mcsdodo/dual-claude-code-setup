@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 904 380" role="img" aria-label="claude-lite adds a gateway hop; plain claude stays direct" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">
+  <style>
+    .bg { fill: #ffffff; }
+    .ink { fill: #1f2328; }
+    .quiet { fill: #59636e; }
+    .edge { stroke: #8c959f; }
+    .arrowhead { fill: #8c959f; }
+    .box { fill: none; stroke: #8c959f; stroke-width: 1.25; }
+    .main { fill: #0969da; fill-opacity: 0.10; stroke: #0969da; stroke-width: 2; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .ink { fill: #e6edf3; }
+      .quiet { fill: #9198a1; }
+      .edge { stroke: #6e7681; }
+      .arrowhead { fill: #6e7681; }
+      .box { stroke: #6e7681; }
+      .main { fill: #4493f8; fill-opacity: 0.14; stroke: #4493f8; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0 0L10 5L0 10z"/>
+    </marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="904" height="380" rx="8"/>
+  <text class="ink" x="24" y="34" font-size="15" font-weight="600">claude-lite adds a gateway hop; plain claude stays direct</text>
+
+  <!-- connectors -->
+  <g class="edge" fill="none" stroke-width="1.25">
+    <path d="M204 100H700" marker-end="url(#arrow)"/>
+    <path d="M204 230H260" marker-end="url(#arrow)"/>
+    <path d="M430 230H480" marker-end="url(#arrow)"/>
+    <path d="M650 206H675V116H700" marker-end="url(#arrow)"/>
+    <path d="M650 254H700" marker-end="url(#arrow)"/>
+  </g>
+  <text class="quiet" x="452" y="90" text-anchor="middle" font-size="11.5">direct, login token - Remote Control works</text>
+  <text class="quiet" x="668" y="160" text-anchor="end" font-size="11.5">anthropic/ - login token forwarded</text>
+
+  <!-- claude -->
+  <rect class="box" x="24" y="72" width="180" height="56" rx="8"/>
+  <text class="ink" x="114" y="96" text-anchor="middle" font-weight="600">claude</text>
+  <text class="quiet" x="114" y="114" text-anchor="middle" font-size="11.5">settings.json only</text>
+
+  <!-- claude-lite -->
+  <rect class="main" x="24" y="194" width="180" height="72" rx="8"/>
+  <text class="ink" x="114" y="218" text-anchor="middle" font-weight="600">claude-lite</text>
+  <text class="quiet" x="114" y="236" text-anchor="middle" font-size="11.5">+ litellm-settings.json</text>
+  <text class="quiet" x="114" y="252" text-anchor="middle" font-size="11.5">no Remote Control</text>
+
+  <!-- headers note -->
+  <text class="quiet" x="24" y="300" font-size="11.5" font-weight="600">sends two headers:</text>
+  <text class="quiet" x="24" y="318" font-size="11.5">Authorization: login token</text>
+  <text class="quiet" x="24" y="334" font-size="11.5">x-litellm-api-key: gateway key</text>
+
+  <!-- headers shim -->
+  <rect class="box" x="260" y="182" width="170" height="96" rx="8"/>
+  <text class="ink" x="345" y="206" text-anchor="middle" font-weight="600">headers shim :4001</text>
+  <text class="quiet" x="345" y="224" text-anchor="middle" font-size="11.5">puts usage headers back</text>
+  <text class="quiet" x="345" y="240" text-anchor="middle" font-size="11.5">PDF -&gt; page images</text>
+  <text class="quiet" x="345" y="256" text-anchor="middle" font-size="11.5">strips \0 tool regex</text>
+
+  <!-- LiteLLM -->
+  <rect class="box" x="480" y="182" width="170" height="96" rx="8"/>
+  <text class="ink" x="565" y="206" text-anchor="middle" font-weight="600">LiteLLM (patched)</text>
+  <text class="quiet" x="565" y="224" text-anchor="middle" font-size="11.5">checks x-litellm-api-key</text>
+  <text class="quiet" x="565" y="240" text-anchor="middle" font-size="11.5">routes by model name</text>
+  <text class="quiet" x="565" y="256" text-anchor="middle" font-size="11.5">Postgres: spend log</text>
+
+  <!-- Anthropic -->
+  <rect class="box" x="700" y="72" width="180" height="56" rx="8"/>
+  <text class="ink" x="790" y="96" text-anchor="middle" font-weight="600">Anthropic API</text>
+  <text class="quiet" x="790" y="114" text-anchor="middle" font-size="11.5">Opus, Sonnet, Haiku</text>
+
+  <!-- OpenCode Go -->
+  <rect class="box" x="700" y="196" width="180" height="130" rx="8"/>
+  <text class="ink" x="790" y="220" text-anchor="middle" font-weight="600">OpenCode Go</text>
+  <text class="quiet" x="790" y="238" text-anchor="middle" font-size="11.5">own key, flat usage cap</text>
+  <text class="quiet" x="790" y="260" text-anchor="middle" font-size="11.5">custom_openai/:</text>
+  <text class="quiet" x="790" y="276" text-anchor="middle" font-size="11.5">DeepSeek V4.1, GLM 5.3</text>
+  <text class="quiet" x="790" y="294" text-anchor="middle" font-size="11.5">openai/responses/:</text>
+  <text class="quiet" x="790" y="310" text-anchor="middle" font-size="11.5">GPT-6 Luna, Muse Spark</text>
+</svg>
