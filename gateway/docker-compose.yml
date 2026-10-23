@@ -76,6 +76,9 @@ services:
       REFRESH_INTERVAL: "45"
       RASTERIZE_PDF_MODELS: "deepseek-v4.1-flash-low,deepseek-v4.1-flash-high,deepseek-v4.1-flash-max"
       STRIP_NUL_PATTERN_MODELS: "deepseek-v4.1-flash-low,deepseek-v4.1-flash-none,deepseek-v4.1-flash-high,deepseek-v4.1-flash-max,muse-spark-1.3"
+    # Plain HTTP on all interfaces. If the reverse proxy runs on this host,
+    # use "127.0.0.1:4001:4001" so only the proxy can reach it. Otherwise
+    # firewall port 4001 to the proxy host.
     ports:
       - "4001:4001"
     depends_on:

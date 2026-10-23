@@ -63,7 +63,8 @@ the steps and a check after each one. To do it by hand, follow the same file.
 
 ## Requirements
 
-- Claude Code, logged in with a Claude Pro or Max account (or an Anthropic API key).
+- Claude Code, logged in with a Claude Pro or Max account. An Anthropic API key login is
+  not tested; the shim's usage headers need a subscription login.
 - A Docker host for the gateway, and an HTTPS reverse proxy on your LAN or VPN. Do not
   expose the gateway to the internet: it forwards your Claude login token.
 - An OpenCode Go subscription and API key.

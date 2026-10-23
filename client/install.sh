@@ -34,6 +34,13 @@ for a in "$@"; do
   esac
 done
 
+if [ -n "${SUDO_USER:-}" ] && [ "${ALLOW_SUDO:-}" != "1" ]; then
+  echo "refusing to run under sudo: the settings file would belong to root and" >&2
+  echo "the user could not read it. Run as the user who runs claude-lite." >&2
+  echo "(To install the wrapper system-wide anyway, set ALLOW_SUDO=1.)" >&2
+  exit 1
+fi
+
 if [ "$(id -u)" = "0" ]; then DEFAULT_PREFIX=/usr/local/bin; else DEFAULT_PREFIX="$HOME/.local/bin"; fi
 PREFIX="${PREFIX:-$DEFAULT_PREFIX}"
 SETTINGS="${CLAUDE_LITE_SETTINGS:-$HOME/.claude/litellm-settings.json}"
@@ -108,6 +115,10 @@ EOF
 
 if [ "$STATUSLINE" = 1 ]; then
   echo "==> statusline -> $HOME/.claude/statusline.py"
+  if [ -f "$HOME/.claude/statusline.py" ] && ! cmp -s "$SRC/statusline.py" "$HOME/.claude/statusline.py"; then
+    run cp -p "$HOME/.claude/statusline.py" "$HOME/.claude/statusline.py.bak"
+    echo "    kept your old statusline as ~/.claude/statusline.py.bak"
+  fi
   run install -m 0644 "$SRC/statusline.py" "$HOME/.claude/statusline.py"
   cat <<'MSG'
     To enable it, add this to ~/.claude/settings.json (it applies to claude and claude-lite):

@@ -26,6 +26,8 @@ For anything about PDFs, read [docs/pdf-handling.md](./docs/pdf-handling.md).
 - **Test interactive sessions, not only `-p`.** `-p` mode sends fewer tools, so a `-p` test
   can pass while every interactive turn fails.
 - Write secrets only to `gateway/.env` and `~/.claude/litellm-settings.json`, both mode `0600`.
+  The one exception is the optional statusline key, `~/.claude/opencode-go.key` (mode `0600`).
+- Run every command from the repo root unless the step says otherwise.
 
 ## Step 1 - the gateway
 
@@ -34,15 +36,14 @@ can reach port 4001 on this host, and an OpenCode Go subscription.
 
 1. Create the secrets file:
    ```bash
-   cd gateway
-   cp .env.example .env && chmod 600 .env
+   cp gateway/.env.example gateway/.env && chmod 600 gateway/.env
    ```
    Set `LITELLM_MASTER_KEY` (`openssl rand -hex 24`, with an `sk-` prefix),
    `LITELLM_DB_PASSWORD` (random) and `OPENCODE_GO_API_KEY` (from the user).
 2. Start it. Always pass `--build`:
    ```bash
-   docker compose up -d --build
-   docker compose ps    # postgres, litellm and litellm-headers-shim: healthy
+   docker compose -f gateway/docker-compose.yml up -d --build
+   docker compose -f gateway/docker-compose.yml ps   # postgres, litellm, litellm-headers-shim: healthy
    ```
    The first build takes a few minutes. It fails on purpose if a patch no longer applies;
    see [gateway/patched/README.md](./gateway/patched/README.md).
@@ -63,6 +64,10 @@ curl -s "$GW/v1/chat/completions" -H "Authorization: Bearer $KEY" \
 
 The last call must answer with a message. `MissingSessionID` means the session header did
 not arrive.
+
+On the gateway host, also run [gateway/smoke.sh](./gateway/smoke.sh) with
+`LITELLM_MASTER_KEY` and `ANTHROPIC_OAUTH_TOKEN` set. It checks that the shim restores the
+subscription usage headers. It can take up to 2 minutes.
 
 ## Step 2 - the client
 
@@ -95,7 +100,9 @@ Do all of these. A reply alone does not prove the route.
    `claude-lite --model claude-haiku-4-5 -p "Reply with ok."`
 2. A Go model, non-interactive:
    `claude-lite --model deepseek-v4.1-flash-high -p "Reply with ok."`
-3. **Interactive** (start `claude-lite`, then type in the session):
+3. **Interactive** (start `claude-lite`, then type in the session). If you cannot drive an
+   interactive terminal (for example with `tmux send-keys`), ask the user to do this step
+   and report what they see:
    - `/model` lists **DeepSeek High**, **GLM 5.3 Flash**, **GPT-6 Luna** and
      **Muse Spark 1.3** after the built-in Opus, Sonnet and Haiku rows.
    - Select each of the four, press `s` (this session only), and ask "List the files in
@@ -105,7 +112,7 @@ Do all of these. A reply alone does not prove the route.
      list cron jobs." The turn after the `ToolSearch` call must not fail.
 4. The two commands differ: `claude doctor` reports Remote Control as available, and
    `claude-lite doctor` reports that it is not.
-5. On the gateway host, `docker compose logs litellm --since 10m` shows the calls, and no
+5. On the gateway host, `docker compose -f gateway/docker-compose.yml logs litellm --since 10m` shows the calls, and no
    `unexpected keyword argument` and no 400s.
 6. If the user enabled the statusline: a `claude-lite` session on DeepSeek shows a
    `Go 5h: ...` segment, and one on Opus shows `5h: ... | 7d: ...`.
@@ -116,9 +123,9 @@ Report what passed and what failed, with the error text.
 
 - **A new Claude Code release** can add a top-level request field. The symptom: a Go call
   hangs about 4 minutes, then fails with 500. Find the field with
-  `docker compose logs litellm | grep "unexpected keyword argument"`, add it to
+  `docker compose -f gateway/docker-compose.yml logs litellm | grep "unexpected keyword argument"`, add it to
   `additional_drop_params` on every Go entry in [gateway/config.yaml](./gateway/config.yaml),
-  and run `docker compose up -d --build`.
+  and run `docker compose -f gateway/docker-compose.yml up -d --build`.
 - **A new model:** add an entry to [gateway/config.yaml](./gateway/config.yaml). Copy a
   `custom_openai/` entry if Go serves the model on chat completions, or an
   `openai/responses/` entry if Go answers `Model does not support this protocol`. Test it

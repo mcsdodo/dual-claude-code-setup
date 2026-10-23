@@ -9,10 +9,11 @@ When Claude Code reads a PDF (the `Read` tool, or a PDF you attach), it sends an
 `document` block: the whole file, base64, `media_type: application/pdf`. For a `Read` the
 block sits **inside a `tool_result`**. Anthropic models read that block natively. Every other
 model needs LiteLLM to translate it to an OpenAI-style message, and the providers do not
-agree on what a PDF looks like in that format. **Most failures here are silent**: the call
+agree on what a PDF looks like in that format. **The worst failure is silent**: the call
 answers HTTP 200, the PDF never reached the model, and the model writes a confident answer
 from the prompt alone. On a document task that answer is complete, well formed and
-invented.
+invented. LiteLLM 1.83 did this for every PDF in a tool result; 1.106 carries the PDF but
+in the wrong shape, which some providers refuse and some misread.
 
 ## The path
 
@@ -49,7 +50,7 @@ and the shim code is in [../gateway/headers-shim/server.py](../gateway/headers-s
 | `deepseek-v4.1-flash-low`, `-high`, `-max` | Shim turns pages into JPEGs, LiteLLM sends images | Works. Without the shim Go answers 400 `file must have a file_id or file_data` |
 | `deepseek-v4.1-flash-none` | Not in `RASTERIZE_PDF_MODELS`, so the PDF goes as a `file` part | Not tested. Expect the same 400 as the other DeepSeek aliases without the shim. Add the name to the list if you read PDFs on this alias |
 | `gpt-6-luna`, `muse-spark-1.3` | Not rasterized. LiteLLM's Responses API bridge carries the PDF | Works (tested on LiteLLM 1.106.2) |
-| `glm-5.3-flash` | `file` part through LiteLLM | **Fails**: 400 `ChatCompletionRequestUserMessageContent`, on LiteLLM 1.83 and 1.106. A direct curl to Go with a PDF `file` part for GLM answered 200, so the cause is in the path through the gateway. Adding `glm-5.3-flash` to `RASTERIZE_PDF_MODELS` should work, because GLM reads images, but it is not tested |
+| `glm-5.3-flash` | `file` part through LiteLLM | **Fails**: 400 `ChatCompletionRequestUserMessageContent`, on LiteLLM 1.83 and 1.106. A direct `chat/completions` call to Go for GLM with a one-page PDF as a `file` part answered 200 and read it correctly (2026-10-23), so the cause of the 400 is not known. Adding `glm-5.3-flash` to `RASTERIZE_PDF_MODELS` should work, because GLM reads images, but it is not tested |
 
 ## The rasterizer
 

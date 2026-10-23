@@ -4,6 +4,8 @@
 source patches with [apply_patches.py](./apply_patches.py). The build fails if a patch no longer applies, or if
 an upstream fix that this setup depends on is gone.
 
+Run the `docker compose` commands on this page from the `gateway/` folder.
+
 ## What the patches change
 
 | File | Change | Why |
