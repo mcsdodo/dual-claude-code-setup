@@ -37,6 +37,8 @@ measured on a running setup. The versions: LiteLLM v1.106.2 (patched, see
 
 ## Models and PDFs
 
+The whole PDF path, and the status per model: [pdf-handling.md](./pdf-handling.md).
+
 | Symptom | Cause | Fix |
 |---|---|---|
 | DeepSeek on Go: `file must have a file_id or file_data` | Go refuses a PDF `file` part for DeepSeek and has no `/files` endpoint | The shim turns the PDF into page images for the names in `RASTERIZE_PDF_MODELS` |

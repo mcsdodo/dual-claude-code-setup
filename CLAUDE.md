@@ -10,6 +10,7 @@ You set up two commands on a machine:
 The gateway can run on the same machine or on another host. Do the steps in order. Do not
 go to the next step until its check passes. If a check fails, read
 [docs/pitfalls.md](./docs/pitfalls.md) first: most failures in this setup give no clear error.
+For anything about PDFs, read [docs/pdf-handling.md](./docs/pdf-handling.md).
 
 ## Rules
 
