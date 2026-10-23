@@ -18,7 +18,7 @@ measured on a running setup. The versions: LiteLLM v1.106.2 (patched, see
 | A Go model compacts at 200k tokens | The model is not in Claude Code's catalog, so it assumes 200k | `CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000`. It applies only to models outside the catalog, so do not add `behavesAs` to a picker row: that makes the model "known" |
 | Tool search is off | Claude Code turns it off for a base URL that is not Anthropic's | `ENABLE_TOOL_SEARCH=true` |
 | `/effort` has no effect on DeepSeek | `/effort` reaches Anthropic models only | One gateway alias per effort (`-none`, `-low`, `-high`, `-max`) |
-| A `-p` test passes, every interactive turn on a Go model answers 400 with only `{'model': ...}` | Go refuses a tool schema with a `\0` regex. The built-in `Artifact` tool has one, and it is sent only in interactive sessions with a claude.ai login | The shim removes those patterns for the names in `STRIP_NUL_PATTERN_MODELS`. Always test interactively |
+| A `-p` test passes, every interactive turn on DeepSeek or Muse answers 400 with only `{'model': ...}` | Go refuses a tool schema with a `\0` regex. The built-in `Artifact` tool has one, and it is sent only in interactive sessions with a claude.ai login | The shim removes those patterns for the names in `STRIP_NUL_PATTERN_MODELS`. Always test interactively |
 
 ## Gateway
 
@@ -26,7 +26,8 @@ measured on a running setup. The versions: LiteLLM v1.106.2 (patched, see
 |---|---|---|
 | Go answers `400 MissingSessionID` | No `x-opencode-session` header. Claude Code sends `X-Claude-Code-Session-Id`, which `forward_client_headers_to_llm_api` passes on | Keep that setting in `general_settings` (per model it has no effect). A curl or SDK caller must send `x-opencode-session: <id>` itself. Never put a static one in `extra_headers`: it overwrites the client's |
 | A Go call hangs about 4 minutes, then 500 `unexpected keyword argument '<field>'` | Claude Code sent a new top-level field that LiteLLM does not know, so `drop_params` misses it. Claude Code retries the 500, so it looks like a slow model | Add the field to `additional_drop_params` on every Go entry. Today: `output_config`, `safeguards` |
-| Go 400s on every Claude Code call, a curl test passes | The provider prefix is `openai/`, which sends Claude Code's calls to `/v1/responses` and drops the session header | Use `custom_openai/`. Never `anthropic/`: it sends the user's Claude login token to opencode.ai |
+| Go 400s on every Claude Code call to DeepSeek or GLM, a curl test passes | The provider prefix is `openai/`, which sends Claude Code's calls to `/v1/responses`. Go does not serve that for these models | Use `custom_openai/`. Never `anthropic/`: it sends the user's Claude login token to opencode.ai |
+| Go answers `Model does not support this protocol` | The model is served on `/v1/responses` only (GPT-6 Luna, Muse Spark 1.3) | Use `openai/responses/<id>`. This bridge needs LiteLLM 1.106.2 or later: on 1.83 it sent the model as `responses/<id>` and dropped the session header (`MissingSessionID`) |
 | Opus or Sonnet with 1M context fails | `model_name` has a `[1m]` suffix | Keep `model_name` bare. LiteLLM turns `[1m]` into the 1M beta header |
 | Auto mode refuses every Bash call: `... is temporarily unavailable (rate-limited)` | The `x-anthropic-billing-header` system block was removed, and Anthropic answers small subscription calls with 429 | Fixed upstream in v1.106; the image build asserts it. Workaround: `claude-lite --permission-mode default` |
 | The statusline shows no 5h / 7d usage in `claude-lite` | LiteLLM drops the `anthropic-ratelimit-*` response headers | The client must connect to the shim (port 4001), not to LiteLLM |
@@ -42,7 +43,7 @@ measured on a running setup. The versions: LiteLLM v1.106.2 (patched, see
 | GLM on Go: a Claude Code `Read` of a PDF answers 400 `ChatCompletionRequestUserMessageContent` | Measured on LiteLLM v1.83 and v1.106. `glm-5.3-flash` is not in `RASTERIZE_PDF_MODELS`. A direct curl to Go with a PDF `file` part for GLM answered 200, so the 400 comes from the path through the gateway | Not fixed. Adding `glm-5.3-flash` to `RASTERIZE_PDF_MODELS` should work, because GLM reads images; this is not tested |
 | A non-Anthropic model invents the content of a PDF | Stock LiteLLM sends the PDF in a shape the provider ignores, with HTTP 200 | The patched image ([../gateway/patched/README.md](../gateway/patched/README.md)) |
 | A PDF to Anthropic or Gemini reads worse than expected | Its name was added to `RASTERIZE_PDF_MODELS` | Remove it. Those models read the PDF itself, and better than a picture of it |
-| `gpt-6-luna`, `muse-spark-1.3-contributor` (Go) do not work | Go serves them only on `/v1/responses` (`ModelProtocolUnsupported` on chat completions). LiteLLM's `openai/responses/` bridge sent the model as `responses/gpt-6-luna` and dropped every client header, so Go answered `MissingSessionID` | Leave them out. Measured on v1.83.14; not tested again on v1.106.2 |
+| Muse Spark 1.3: every interactive turn answers 400, a `-p` test passes | Muse refuses the Artifact tool's `\0` regex, like DeepSeek. GPT-6 Luna and GLM accept it | `muse-spark-1.3` is in `STRIP_NUL_PATTERN_MODELS` |
 
 ## OpenCode Go usage
 

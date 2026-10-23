@@ -5,7 +5,7 @@ You set up two commands on a machine:
 | Command | Route | Remote Control |
 |---|---|---|
 | `claude` | direct to `api.anthropic.com`, the user's Claude subscription | yes |
-| `claude-lite` | through a LiteLLM gateway: Claude models with the same login, plus DeepSeek V4.1 Flash and GLM 5.3 Flash on OpenCode Go | no, by design |
+| `claude-lite` | through a LiteLLM gateway: Claude models with the same login, plus DeepSeek V4.1 Flash, GLM 5.3 Flash, GPT-6 Luna and Muse Spark 1.3 on OpenCode Go | no, by design |
 
 The gateway can run on the same machine or on another host. Do the steps in order. Do not
 go to the next step until its check passes. If a check fails, read
@@ -53,7 +53,8 @@ can reach port 4001 on this host, and an OpenCode Go subscription.
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' "$GW/health/liveliness"   # 200
 curl -s "$GW/v1/models" -H "Authorization: Bearer $KEY" | python3 -c "import json,sys;print([m['id'] for m in json.load(sys.stdin)['data']])"
-# expect: claude-opus-5, claude-sonnet-5, claude-haiku-4-5, deepseek-v4.1-flash-none/-low/-high/-max, glm-5.3-flash
+# expect: claude-opus-5, claude-sonnet-5, claude-haiku-4-5, deepseek-v4.1-flash-none/-low/-high/-max,
+#         glm-5.3-flash, gpt-6-luna, muse-spark-1.3
 curl -s "$GW/v1/chat/completions" -H "Authorization: Bearer $KEY" \
   -H "x-opencode-session: setup-check" -H "Content-Type: application/json" \
   -d '{"model":"glm-5.3-flash","messages":[{"role":"user","content":"Reply with ok."}]}'
@@ -94,10 +95,11 @@ Do all of these. A reply alone does not prove the route.
 2. A Go model, non-interactive:
    `claude-lite --model deepseek-v4.1-flash-high -p "Reply with ok."`
 3. **Interactive** (start `claude-lite`, then type in the session):
-   - `/model` lists **DeepSeek High** and **GLM 5.3 Flash** after the built-in Opus, Sonnet
-     and Haiku rows.
-   - Select GLM 5.3 Flash, press `s` (this session only), and ask "List the files in this
-     folder." It must run a tool and answer.
+   - `/model` lists **DeepSeek High**, **GLM 5.3 Flash**, **GPT-6 Luna** and
+     **Muse Spark 1.3** after the built-in Opus, Sonnet and Haiku rows.
+   - Select each of the four, press `s` (this session only), and ask "List the files in
+     this folder." Each must run a tool and answer. Muse fails here with a 400 if it is
+     missing from `STRIP_NUL_PATTERN_MODELS`.
    - Do the same on DeepSeek High, then ask "Use ToolSearch to find the cron tools, then
      list cron jobs." The turn after the `ToolSearch` call must not fail.
 4. The two commands differ: `claude doctor` reports Remote Control as available, and
@@ -116,9 +118,12 @@ Report what passed and what failed, with the error text.
   `docker compose logs litellm | grep "unexpected keyword argument"`, add it to
   `additional_drop_params` on every Go entry in [gateway/config.yaml](./gateway/config.yaml),
   and run `docker compose up -d --build`.
-- **A new model:** add an entry to [gateway/config.yaml](./gateway/config.yaml) (copy a Go
-  entry), and add it to both shim lists in
-  [gateway/docker-compose.yml](./gateway/docker-compose.yml) if it is on Go. Add a picker
+- **A new model:** add an entry to [gateway/config.yaml](./gateway/config.yaml). Copy a
+  `custom_openai/` entry if Go serves the model on chat completions, or an
+  `openai/responses/` entry if Go answers `Model does not support this protocol`. Test it
+  interactively; add it to `STRIP_NUL_PATTERN_MODELS` in
+  [gateway/docker-compose.yml](./gateway/docker-compose.yml) only if a turn answers 400,
+  and to `RASTERIZE_PDF_MODELS` only if a PDF `Read` fails on a `file` part. Add a picker
   row in the settings template and the user's settings file. Add it to `GO_MODEL_MARKERS` in
   [client/statusline.py](./client/statusline.py). Then do step 3 again.
 - **A LiteLLM version bump:** follow [gateway/patched/README.md](./gateway/patched/README.md).

@@ -12,7 +12,8 @@ The quota segment depends on which subscription serves the session model:
       only because litellm-headers-shim re-injects the anthropic-ratelimit-*
       headers (gateway/docker-compose.yml).
 
-  OpenCode Go (deepseek-v4.1-flash-*, glm-5.3-flash through the gateway)
+  OpenCode Go (deepseek-v4.1-flash-*, glm-5.3-flash, gpt-6-luna,
+  muse-spark-1.3 through the gateway)
       Go 5h: 5% (33m) | wk: 2% (6d15h) | mo: 2% (29d3h)
       From GET https://opencode.ai/zen/go/v1/usage -- undocumented, measured
       2026-09-14. The windows are "5-hour -- 20% of the monthly limit; weekly --
@@ -47,7 +48,7 @@ RESET = "\033[0m"
 # Gateway model names served by OpenCode Go. Source of truth:
 # gateway/config.yaml (entries with api_base opencode.ai).
 # This list changed provider once already (2026-09-13); keep it in step.
-GO_MODEL_MARKERS = ("deepseek-v4.1-flash", "glm-5.3-flash")
+GO_MODEL_MARKERS = ("deepseek-v4.1-flash", "glm-5.3-flash", "gpt-6-luna", "muse-spark-1.3")
 
 GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 GO_KEY_FILE = os.environ.get("STATUSLINE_GO_KEY_FILE", os.path.expanduser("~/.claude/opencode-go.key"))
