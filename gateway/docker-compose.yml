@@ -1,0 +1,91 @@
+# LiteLLM gateway for claude-lite: Postgres, patched LiteLLM, headers shim.
+#
+#   cp .env.example .env    # fill in, then chmod 600 .env
+#   docker compose up -d --build
+#
+# ALWAYS pass --build. `litellm` and `litellm-headers-shim` are built from the
+# folders next to this file. Without --build, compose reuses the old image
+# and an edit to patched/ or headers-shim/ never runs.
+#
+# Clients connect to the SHIM on port 4001, not to LiteLLM. Put your HTTPS
+# reverse proxy in front of port 4001. Keep it on your LAN or VPN: the
+# gateway forwards your Claude login token.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+      POSTGRES_DB: litellm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # LiteLLM with three source patches (see patched/README.md). The FROM line
+  # in patched/Dockerfile pins the upstream digest. The first start of a new
+  # LiteLLM version migrates the Postgres schema, so pg_dump before a bump.
+  litellm:
+    build: ./patched
+    image: litellm-patched:local
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${LITELLM_DB_PASSWORD}@postgres:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    # No published port. Only the shim reaches it.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+
+  # The client-facing endpoint. It proxies everything to LiteLLM and does
+  # three jobs on the way:
+  # 1. Puts back the anthropic-ratelimit-* response headers that LiteLLM
+  #    drops, so the Claude Code statusline shows 5h / 7d usage. It makes a
+  #    1-token Haiku call every REFRESH_INTERVAL seconds with the last seen
+  #    login token.
+  # 2. Turns a PDF into page images for the models in RASTERIZE_PDF_MODELS.
+  #    OpenCode Go refuses a PDF file part. Never add an Anthropic model.
+  # 3. Removes `\0` regex patterns from tool schemas for the models in
+  #    STRIP_NUL_PATTERN_MODELS. Go answers 400 to the Artifact tool's schema,
+  #    which interactive sessions send.
+  # Both lists use gateway model_name values, comma-separated.
+  litellm-headers-shim:
+    build: ./headers-shim
+    image: litellm-headers-shim:local
+    restart: unless-stopped
+    environment:
+      LITELLM_URL: http://litellm:4000
+      LISTEN_PORT: "4001"
+      REFRESH_MODEL: claude-haiku-4-5
+      REFRESH_INTERVAL: "45"
+      RASTERIZE_PDF_MODELS: "deepseek-v4.1-flash-low,deepseek-v4.1-flash-high,deepseek-v4.1-flash-max"
+      STRIP_NUL_PATTERN_MODELS: "deepseek-v4.1-flash-low,deepseek-v4.1-flash-none,deepseek-v4.1-flash-high,deepseek-v4.1-flash-max"
+    ports:
+      - "4001:4001"
+    depends_on:
+      litellm:
+        condition: service_healthy
+    healthcheck:
+      # 127.0.0.1, not localhost: on Alpine localhost resolves to IPv6 only.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4001/_shim_health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+
+volumes:
+  pgdata:

@@ -1,0 +1,161 @@
+# LiteLLM gateway config for the claude / claude-lite setup.
+#
+# Models served:
+#   claude-opus-5, claude-sonnet-5, claude-haiku-4-5  -> Anthropic, with the
+#       client's own Claude login token (subscription). No api_key here.
+#   deepseek-v4.1-flash-{none,low,high,max}            -> OpenCode Go
+#   glm-5.3-flash                                      -> OpenCode Go
+#
+# Read docs/pitfalls.md before you change an entry. Most mistakes here fail
+# silently or only in an interactive Claude Code session.
+
+model_list:
+  # -- Anthropic ---------------------------------------------------------------
+  # Keep model_name bare. Claude Code asks for e.g. `claude-opus-5[1m]`;
+  # LiteLLM strips the `[1m]` suffix and sends the 1M-context beta header.
+  # A `[1m]` in model_name breaks the match.
+  - model_name: claude-opus-5
+    litellm_params:
+      model: anthropic/claude-opus-5
+      input_cost_per_token: 0      # subscription, not per token
+      output_cost_per_token: 0
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+
+  # -- OpenCode Go ---------------------------------------------------------------
+  # Flat subscription with a usage cap, so the cost is 0 here.
+  #
+  # Every Go entry needs ALL of these:
+  #   custom_openai/   `openai/` routes Claude Code's calls to /v1/responses and
+  #                    drops the session header (400). `anthropic/` would send
+  #                    your Claude login token to opencode.ai.
+  #   drop_params      Claude Code sends Anthropic-only fields (thinking,
+  #                    context_management); Go rejects them.
+  #   additional_drop_params
+  #                    Top-level fields LiteLLM does not know, so drop_params
+  #                    misses them and the call 500s ("unexpected keyword
+  #                    argument"). New Claude Code releases add new ones. If a
+  #                    Go call hangs for minutes and then 500s, read
+  #                    `docker compose logs litellm` and add the field here.
+  #   User-Agent       Go asks clients to send their own user agent. NEVER add
+  #                    a static `x-opencode-session` here: extra_headers
+  #                    overwrites the per-conversation id that Claude Code sends.
+  #
+  # DeepSeek: one alias per effort. Claude Code's /effort does not reach a
+  # non-Anthropic model, and the client's `thinking` field would otherwise
+  # arrive as a low effort. `extra_body` is applied last, so the pin holds.
+  - model_name: deepseek-v4.1-flash-none
+    litellm_params:
+      model: custom_openai/deepseek-v4.1-flash
+      api_base: https://opencode.ai/zen/go/v1
+      api_key: os.environ/OPENCODE_GO_API_KEY
+      extra_headers:
+        User-Agent: my-gateway/1.0
+      drop_params: true
+      additional_drop_params: ["output_config", "safeguards"]
+      extra_body:
+        reasoning_effort: "none"
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 1000000
+      supports_pdf_input: true
+      supports_vision: true
+  - model_name: deepseek-v4.1-flash-low
+    litellm_params:
+      model: custom_openai/deepseek-v4.1-flash
+      api_base: https://opencode.ai/zen/go/v1
+      api_key: os.environ/OPENCODE_GO_API_KEY
+      extra_headers:
+        User-Agent: my-gateway/1.0
+      drop_params: true
+      additional_drop_params: ["output_config", "safeguards"]
+      extra_body:
+        reasoning_effort: "low"
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 1000000
+      supports_pdf_input: true
+      supports_vision: true
+  - model_name: deepseek-v4.1-flash-high
+    litellm_params:
+      model: custom_openai/deepseek-v4.1-flash
+      api_base: https://opencode.ai/zen/go/v1
+      api_key: os.environ/OPENCODE_GO_API_KEY
+      extra_headers:
+        User-Agent: my-gateway/1.0
+      drop_params: true
+      additional_drop_params: ["output_config", "safeguards"]
+      extra_body:
+        reasoning_effort: "high"
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 1000000
+      supports_pdf_input: true
+      supports_vision: true
+  - model_name: deepseek-v4.1-flash-max
+    litellm_params:
+      model: custom_openai/deepseek-v4.1-flash
+      api_base: https://opencode.ai/zen/go/v1
+      api_key: os.environ/OPENCODE_GO_API_KEY
+      extra_headers:
+        User-Agent: my-gateway/1.0
+      drop_params: true
+      additional_drop_params: ["output_config", "safeguards"]
+      extra_body:
+        reasoning_effort: "max"
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 1000000
+      supports_pdf_input: true
+      supports_vision: true
+
+  # GLM 5.3 Flash. Its thinking cannot be turned off, so there is no effort
+  # pin; the client's effort passes through. `allowed_openai_params` lets
+  # `reasoning_effort` through `drop_params`, which would otherwise remove it
+  # silently because LiteLLM has no capability entry for this model.
+  - model_name: glm-5.3-flash
+    litellm_params:
+      model: custom_openai/glm-5.3-flash
+      api_base: https://opencode.ai/zen/go/v1
+      api_key: os.environ/OPENCODE_GO_API_KEY
+      extra_headers:
+        User-Agent: my-gateway/1.0
+      drop_params: true
+      additional_drop_params: ["output_config", "safeguards"]
+      allowed_openai_params: ["reasoning_effort"]
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 1000000
+      supports_pdf_input: true
+      supports_vision: true
+
+router_settings:
+  enable_pre_call_checks: true   # enforces model_info.max_input_tokens
+
+general_settings:
+  database_url: os.environ/DATABASE_URL
+  # MUST be global. It forwards the client's Authorization header (the Claude
+  # login token) to Anthropic and the x-* headers (the Go session id) to Go.
+  # A Go entry is not affected by the Authorization header, because its own
+  # api_key wins.
+  forward_client_headers_to_llm_api: true
+
+litellm_settings:
+  # MUST stay false. Anthropic answers subscription calls with 429 when
+  # Claude Code's own fields are stripped. The Go entries set drop_params
+  # per model instead.
+  drop_params: false
+  master_key: os.environ/LITELLM_MASTER_KEY

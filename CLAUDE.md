@@ -1,0 +1,125 @@
+# Agent runbook: set up claude + claude-lite
+
+You set up two commands on a machine:
+
+| Command | Route | Remote Control |
+|---|---|---|
+| `claude` | direct to `api.anthropic.com`, the user's Claude subscription | yes |
+| `claude-lite` | through a LiteLLM gateway: Claude models with the same login, plus DeepSeek V4.1 Flash and GLM 5.3 Flash on OpenCode Go | no, by design |
+
+The gateway can run on the same machine or on another host. Do the steps in order. Do not
+go to the next step until its check passes. If a check fails, read
+[docs/pitfalls.md](./docs/pitfalls.md) first: most failures in this setup give no clear error.
+
+## Rules
+
+- **Never put the gateway env in an auto-loaded settings file.** Claude Code loads
+  `settings.json` and `settings.local.json` on its own (in `~/.claude/` and in each
+  project's `.claude/`), and `managed-settings.json`. The gateway env there moves every
+  `claude` on the machine to the gateway and stops Remote Control. The gateway env goes
+  only in `~/.claude/litellm-settings.json`, which only `claude-lite` loads.
+- **Do not change `~/.claude/settings.json`** unless the user asks. The statusline is the
+  only optional change there.
+- **Ask the user** for the gateway's HTTPS URL, and for the OpenCode Go API key. Never
+  invent them, and never print a key in full.
+- **Test interactive sessions, not only `-p`.** `-p` mode sends fewer tools, so a `-p` test
+  can pass while every interactive turn fails.
+- Write secrets only to `gateway/.env` and `~/.claude/litellm-settings.json`, both mode `0600`.
+
+## Step 1 - the gateway
+
+Needs: Docker with the Compose plugin, an HTTPS reverse proxy (Caddy, Traefik, nginx) that
+can reach port 4001 on this host, and an OpenCode Go subscription.
+
+1. Create the secrets file:
+   ```bash
+   cd gateway
+   cp .env.example .env && chmod 600 .env
+   ```
+   Set `LITELLM_MASTER_KEY` (`openssl rand -hex 24`, with an `sk-` prefix),
+   `LITELLM_DB_PASSWORD` (random) and `OPENCODE_GO_API_KEY` (from the user).
+2. Start it. Always pass `--build`:
+   ```bash
+   docker compose up -d --build
+   docker compose ps    # postgres, litellm and litellm-headers-shim: healthy
+   ```
+   The first build takes a few minutes. It fails on purpose if a patch no longer applies;
+   see [gateway/patched/README.md](./gateway/patched/README.md).
+3. Point the reverse proxy at `<this host>:4001` (the shim, **not** LiteLLM). Keep it on the
+   LAN or a VPN: the gateway forwards the user's Claude login token.
+
+**Check** (set `GW` to the HTTPS URL and `KEY` to the master key):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$GW/health/liveliness"   # 200
+curl -s "$GW/v1/models" -H "Authorization: Bearer $KEY" | python3 -c "import json,sys;print([m['id'] for m in json.load(sys.stdin)['data']])"
+# expect: claude-opus-5, claude-sonnet-5, claude-haiku-4-5, deepseek-v4.1-flash-none/-low/-high/-max, glm-5.3-flash
+curl -s "$GW/v1/chat/completions" -H "Authorization: Bearer $KEY" \
+  -H "x-opencode-session: setup-check" -H "Content-Type: application/json" \
+  -d '{"model":"glm-5.3-flash","messages":[{"role":"user","content":"Reply with ok."}]}'
+```
+
+The last call must answer with a message. `MissingSessionID` means the session header did
+not arrive.
+
+## Step 2 - the client
+
+Needs: Claude Code installed (`claude --version`) and logged in with the user's account
+(`claude /login`, once). `claude-lite` uses the same login.
+
+**Linux or macOS:**
+
+```bash
+GATEWAY_URL="$GW" GATEWAY_KEY="$KEY" sh client/install.sh --dry-run   # review
+GATEWAY_URL="$GW" GATEWAY_KEY="$KEY" sh client/install.sh
+```
+
+It installs `claude-lite` (to `/usr/local/bin` as root, else `~/.local/bin`) and writes
+`~/.claude/litellm-settings.json` from
+[client/litellm-settings.example.json](./client/litellm-settings.example.json).
+Add `--statusline` if the user wants the quota statusline
+([client/statusline.py](./client/statusline.py)); the installer prints the one line for
+`settings.json`.
+
+**Windows:** copy [client/litellm-settings.example.json](./client/litellm-settings.example.json)
+to `%USERPROFILE%\.claude\litellm-settings.json`, put in the URL and key, and copy
+[client/claude-lite.ps1](./client/claude-lite.ps1) to a folder on `PATH`.
+
+## Step 3 - verify
+
+Do all of these. A reply alone does not prove the route.
+
+1. Claude through the gateway, with the login token:
+   `claude-lite --model claude-haiku-4-5 -p "Reply with ok."`
+2. A Go model, non-interactive:
+   `claude-lite --model deepseek-v4.1-flash-high -p "Reply with ok."`
+3. **Interactive** (start `claude-lite`, then type in the session):
+   - `/model` lists **DeepSeek High** and **GLM 5.3 Flash** after the built-in Opus, Sonnet
+     and Haiku rows.
+   - Select GLM 5.3 Flash, press `s` (this session only), and ask "List the files in this
+     folder." It must run a tool and answer.
+   - Do the same on DeepSeek High, then ask "Use ToolSearch to find the cron tools, then
+     list cron jobs." The turn after the `ToolSearch` call must not fail.
+4. The two commands differ: `claude doctor` reports Remote Control as available, and
+   `claude-lite doctor` reports that it is not.
+5. On the gateway host, `docker compose logs litellm --since 10m` shows the calls, and no
+   `unexpected keyword argument` and no 400s.
+6. If the user enabled the statusline: a `claude-lite` session on DeepSeek shows a
+   `Go 5h: ...` segment, and one on Opus shows `5h: ... | 7d: ...`.
+
+Report what passed and what failed, with the error text.
+
+## Later changes
+
+- **A new Claude Code release** can add a top-level request field. The symptom: a Go call
+  hangs about 4 minutes, then fails with 500. Find the field with
+  `docker compose logs litellm | grep "unexpected keyword argument"`, add it to
+  `additional_drop_params` on every Go entry in [gateway/config.yaml](./gateway/config.yaml),
+  and run `docker compose up -d --build`.
+- **A new model:** add an entry to [gateway/config.yaml](./gateway/config.yaml) (copy a Go
+  entry), and add it to both shim lists in
+  [gateway/docker-compose.yml](./gateway/docker-compose.yml) if it is on Go. Add a picker
+  row in the settings template and the user's settings file. Add it to `GO_MODEL_MARKERS` in
+  [client/statusline.py](./client/statusline.py). Then do step 3 again.
+- **A LiteLLM version bump:** follow [gateway/patched/README.md](./gateway/patched/README.md).
+  Take a `pg_dump` first.

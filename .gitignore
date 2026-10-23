@@ -1,0 +1,9 @@
+# Secrets: never commit
+.env
+!.env.example
+*.key
+litellm-settings.json
+*.dump
+
+__pycache__/
+*.pyc

@@ -1,0 +1,23 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://llm-gateway.example.com",
+    "ANTHROPIC_CUSTOM_HEADERS": "x-litellm-api-key: Bearer <LITELLM_MASTER_KEY>",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+    "ENABLE_TOOL_SEARCH": "true",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
+  },
+  "modelPicker": {
+    "options": [
+      {
+        "model": "deepseek-v4.1-flash-high",
+        "label": "DeepSeek High",
+        "description": "DeepSeek V4.1 Flash, high effort (OpenCode Go)"
+      },
+      {
+        "model": "glm-5.3-flash",
+        "label": "GLM 5.3 Flash",
+        "description": "Z.ai GLM 5.3 Flash (OpenCode Go)"
+      }
+    ]
+  }
+}

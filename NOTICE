@@ -1,0 +1,7 @@
+This project patches LiteLLM (https://github.com/BerriAI/litellm), which is
+licensed under the MIT License, Copyright (c) 2023 Berri AI.
+
+gateway/patched/apply_patches.py contains short excerpts of LiteLLM source
+code, used as anchors to locate and change that code at image build time.
+The patched image is built from the upstream image named in
+gateway/patched/Dockerfile.
