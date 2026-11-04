@@ -30,7 +30,7 @@ measured on a running setup. The versions: LiteLLM v1.106.2 (patched, see
 | Go answers `Model does not support this protocol` | The model is served on `/v1/responses` only (GPT-6 Luna, Muse Spark 1.3) | Use `openai/responses/<id>`. This bridge needs LiteLLM 1.106.2 or later: on 1.83 it sent the model as `responses/<id>` and dropped the session header (`MissingSessionID`) |
 | Opus or Sonnet with 1M context fails | `model_name` has a `[1m]` suffix | Keep `model_name` bare. LiteLLM turns `[1m]` into the 1M beta header. Sonnet with `[1m]` was seen to need the extra-usage tier on a Max subscription |
 | Auto mode refuses every Bash call: `... is temporarily unavailable (rate-limited)` | The `x-anthropic-billing-header` system block was removed, and Anthropic answers small subscription calls with 429 | Fixed upstream in v1.106; the image build asserts it. Workaround: `claude-lite --permission-mode default` |
-| The statusline shows no 5h / 7d usage in `claude-lite` | LiteLLM drops the `anthropic-ratelimit-*` response headers | The client must connect to the shim (port 4001), not to LiteLLM |
+| The statusline shows no 5h / 7d usage in `claude-lite` | Stock LiteLLM renames the `anthropic-ratelimit-*` response headers to `llm_provider-anthropic-ratelimit-*`, and Claude Code does not read that name | The `core_helpers.py` patch in [../gateway/patched/](../gateway/patched/README.md) passes them through under their own name. Rebuild with `--build`. Never add a call of your own to Anthropic to get the numbers: that is scripted use of the Claude login |
 | A change to `patched/` or `headers-shim/` has no effect | `docker compose up -d` reuses an image that exists | `docker compose up -d --build` |
 | An old LiteLLM image does not start after a rollback | The new version migrated the Postgres schema | `pg_dump` before every bump; restore it to roll back ([../gateway/patched/README.md](../gateway/patched/README.md)) |
 | LiteLLM's spend view shows small costs for Claude | Anthropic answers with dated model IDs, which skip the `cost_per_token: 0` override | Ignore. Token counts are correct |
@@ -57,7 +57,25 @@ is not documented and can change. [../client/statusline.py](../client/statusline
 
 ## Policy
 
-Anthropic documents LiteLLM as a supported gateway for Claude Code
-([LLM gateway docs](https://code.claude.com/docs/en/llm-gateway)). Read the current terms
-of your Claude plan yourself before you use a subscription login through a gateway. Use it
-with your own login, for your own use, and keep plain `claude` as the fallback. To roll back, stop using `claude-lite`.
+Anthropic's [LLM gateway docs](https://code.claude.com/docs/en/llm-gateway) describe this
+route: with `ANTHROPIC_BASE_URL` set and no gateway credential, "a saved claude.ai login
+remains the active credential, so its usage limits and billing apply". The same page says
+that Anthropic "doesn't endorse, maintain, or audit third-party gateway products, and
+doesn't support routing Claude Code to non-Claude models through any gateway". The page
+does not name LiteLLM.
+
+This setup keeps to these rules:
+
+- **One person only.** Your own Claude login and your own OpenCode Go key, for your own
+  use. Do not share the gateway or its master key. See "For one person only" in
+  [../README.md](../README.md).
+- **Only Claude Code uses the Claude login.** The unmodified Claude Code binary sends every
+  call to Anthropic. The gateway makes no calls of its own, and `gateway/smoke.sh` does
+  not use the login token.
+- **No forged headers.** LiteLLM forwards Claude Code's `anthropic-beta` values, with the
+  OAuth capability. It can add the 1M-context beta, but it never adds the OAuth capability
+  itself. The `anthropic-ratelimit-*` headers come back from the same response.
+
+Read the current terms of your Claude plan yourself before you use a subscription login
+through a gateway. Keep plain `claude` as the fallback. To roll back, stop using
+`claude-lite`.

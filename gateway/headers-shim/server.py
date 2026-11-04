@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 """
-LiteLLM headers shim -- re-injects upstream Anthropic ratelimit response headers
-that LiteLLM v1.83.x strips during /v1/messages translation.
+LiteLLM headers shim -- a small proxy between the reverse proxy and LiteLLM.
 
-Why: Claude Code reads `anthropic-ratelimit-unified-5h-utilization` and
-`anthropic-ratelimit-unified-7d-utilization` (plus ~11 other ratelimit headers)
-from the response to populate the 5h/7d statusline indicators. Direct-to-
-api.anthropic.com returns them; LiteLLM strips them. Empirical 2026-05-09.
+It passes every request and response through unchanged, except for the two
+body rewrites below. It makes no calls of its own to any provider, and it does
+not read, keep or use the client's Claude login token.
 
-How: this shim sits between Caddy and LiteLLM. It transparently proxies all
-requests. A background task fires a tiny `claude-haiku-4-5` call with
-`max_tokens=1` to api.anthropic.com every REFRESH_INTERVAL seconds using the
-last-seen OAuth bearer, captures the ratelimit headers, and caches them.
-On each Claude /v1/messages response back to the client, the cached headers
-are merged into the proxy response so Claude Code can populate the statusline.
+The name is historical. An earlier version put back the
+`anthropic-ratelimit-*` response headers that LiteLLM renames. To do that it
+kept the last Claude login token it saw and sent its own 1-token Haiku call
+to api.anthropic.com every 45 s. That is automated use of a subscription
+login outside Claude Code, so it was removed. Do not add it back. A LiteLLM
+patch now passes the REAL headers of the client's own response through
+(../patched/README.md), and the shim copies them like every other header.
 
-Cost: 1 extra haiku call per REFRESH_INTERVAL (default 45s) regardless of
-user activity, which is ~13 input tokens + 1 output token per refresh --
-negligible against Max budget. The user's actual /v1/messages calls are
-NOT doubled -- they go through this shim once, hit LiteLLM once.
-
-SECOND JOB -- PDF rasterization for models that refuse a file part.
+FIRST JOB -- PDF rasterization for models that refuse a file part.
 OpenCode Go answers 400 `.messages[0]: file must have a file_id or file_data`
 to every OpenAI `file` content part, with `file_data` present and correct on
 the wire, and it serves no /files endpoint (404), so `file_id` is not an
@@ -38,7 +32,7 @@ The list is EMPTY by default on purpose. Anthropic and Gemini read a PDF
 natively and better than they read a picture of one; rasterizing for them
 would be a downgrade. See ../CLAUDE.md, the OpenCode Go traps.
 
-THIRD JOB -- drop `\\0` regex patterns from tool schemas.
+SECOND JOB -- drop `\\0` regex patterns from tool schemas.
 OpenCode Go answers 400 with only `{'model': 'deepseek-v4.1-flash'}` when any
 tool schema has a `pattern` with a `\\0` in it. Claude Code 2.1.282 sends one
 on every interactive turn: the built-in `Artifact` tool has
@@ -62,14 +56,12 @@ import shutil
 import subprocess
 import tempfile
 import time
-from typing import Any, Optional
+from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout, web
 
 LITELLM_URL = os.environ.get("LITELLM_URL", "http://litellm:4000")
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "4001"))
-REFRESH_MODEL = os.environ.get("REFRESH_MODEL", "claude-haiku-4-5")
-REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL", "45"))
 # aiohttp's web.Application() defaults to a 1 MiB request-body cap and 413s
 # anything larger ("Maximum request body size 1048576 exceeded"). That is far
 # too small for this proxy: a single scanned PDF classified through
@@ -78,16 +70,15 @@ REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL", "45"))
 # Code's own client-side attachment limit, so the shim stops being the first
 # thing to say no.
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(32 * 1024 * 1024)))
-ANTHROPIC_URL = "https://api.anthropic.com"
 
-# -- PDF rasterization (see the second job in the module docstring) ----------
+# -- PDF rasterization (see the first job in the module docstring) ----------
 # Comma-separated gateway model_name values. Empty means the shim never
 # touches a body, which is the default and the correct behaviour for every
 # provider that reads a PDF natively.
 RASTERIZE_PDF_MODELS = {
     m.strip() for m in os.environ.get("RASTERIZE_PDF_MODELS", "").split(",") if m.strip()
 }
-# -- NUL-pattern strip (see the third job in the module docstring) -----------
+# -- NUL-pattern strip (see the second job in the module docstring) -----------
 STRIP_NUL_PATTERN_MODELS = {
     m.strip() for m in os.environ.get("STRIP_NUL_PATTERN_MODELS", "").split(",") if m.strip()
 }
@@ -108,59 +99,10 @@ RASTERIZE_QUALITY = int(os.environ.get("RASTERIZE_QUALITY", "75"))
 RASTERIZE_PAGE_CAP = int(os.environ.get("RASTERIZE_PAGE_CAP", "8"))
 RASTERIZE_BYTES_BUDGET = int(os.environ.get("RASTERIZE_BYTES_BUDGET", str(5 * 1024 * 1024)))
 
-# State (single-process, single-user assumed):
-_cache: dict[int, tuple[float, dict[str, str]]] = {}
-_latest_bearer: Optional[str] = None
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("shim")
 
 HOP_BY_HOP = {"host", "content-length", "transfer-encoding", "content-encoding", "connection"}
-
-
-async def fetch_ratelimits(bearer: str) -> dict[str, str]:
-    """Tiny POST to api.anthropic.com just to read upstream ratelimit response headers."""
-    timeout = ClientTimeout(total=15)
-    async with ClientSession(timeout=timeout) as s:
-        async with s.post(
-            f"{ANTHROPIC_URL}/v1/messages",
-            headers={
-                "Authorization": bearer,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": REFRESH_MODEL,
-                "max_tokens": 1,
-                "messages": [{"role": "user", "content": "_"}],
-            },
-        ) as r:
-            return {
-                k: v for k, v in r.headers.items()
-                if k.lower().startswith("anthropic-")
-            }
-
-
-async def background_refresh() -> None:
-    """Refresh cache every REFRESH_INTERVAL seconds using the most recent OAuth bearer."""
-    while True:
-        try:
-            await asyncio.sleep(REFRESH_INTERVAL)
-            if _latest_bearer is None:
-                continue
-            key = hash(_latest_bearer)
-            try:
-                rl = await fetch_ratelimits(_latest_bearer)
-            except Exception as e:
-                log.warning("refresh failed: %s", e)
-                continue
-            if rl:
-                _cache[key] = (time.time(), rl)
-                log.info("refreshed %d ratelimit headers", len(rl))
-        except asyncio.CancelledError:
-            return
-        except Exception as e:
-            log.warning("background_refresh loop error: %s", e)
 
 
 def _rasterize_pdf(pdf_bytes: bytes) -> tuple[list[str], int, int]:
@@ -309,12 +251,7 @@ def strip_tool_nul_patterns(doc: dict) -> list[str]:
 
 
 async def proxy(request: web.Request) -> web.StreamResponse:
-    global _latest_bearer
-
     body = await request.read()
-
-    # Track latest OAuth bearer for the background refresh task
-    auth = request.headers.get("Authorization", "")
 
     if ((RASTERIZE_PDF_MODELS or STRIP_NUL_PATTERN_MODELS) and request.method == "POST"
             and request.path == "/v1/messages" and body):
@@ -341,9 +278,6 @@ async def proxy(request: web.Request) -> web.StreamResponse:
                     f" -- DROPPED {stats['dropped']} page(s) over the cap"
                     if stats["dropped"] else "",
                 )
-    if auth.startswith("Bearer sk-ant-oat"):
-        _latest_bearer = auth
-
     fwd_headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}
     target = f"{LITELLM_URL}{request.path_qs}"
 
@@ -363,21 +297,6 @@ async def proxy(request: web.Request) -> web.StreamResponse:
 
     # Build response headers
     response_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in HOP_BY_HOP}
-
-    # Inject cached anthropic-ratelimit headers for Claude /v1/messages POSTs
-    if request.method == "POST" and request.path == "/v1/messages" and body:
-        try:
-            doc = json.loads(body)
-            model = doc.get("model", "")
-            if model.startswith("claude") and auth.startswith("Bearer sk-ant-oat"):
-                cached = _cache.get(hash(auth))
-                if cached:
-                    ts, rl = cached
-                    if time.time() - ts < REFRESH_INTERVAL * 4:
-                        for k, v in rl.items():
-                            response_headers.setdefault(k, v)
-        except (json.JSONDecodeError, AttributeError, TypeError):
-            pass
 
     response = web.StreamResponse(status=upstream.status, headers=response_headers)
     await response.prepare(request)
@@ -399,31 +318,15 @@ async def health(request: web.Request) -> web.Response:
     return web.Response(text="ok\n")
 
 
-async def _on_startup(app: web.Application) -> None:
-    app["refresh_task"] = asyncio.create_task(background_refresh())
-
-
-async def _on_cleanup(app: web.Application) -> None:
-    task = app.get("refresh_task")
-    if task:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-
 def main() -> None:
     app = web.Application(client_max_size=MAX_BODY_BYTES)
     app.router.add_get("/_shim_health", health)
     app.router.add_route("*", "/{path:.*}", proxy)
-    app.on_startup.append(_on_startup)
-    app.on_cleanup.append(_on_cleanup)
     log.info(
-        "litellm-headers-shim listening on :%d, target=%s, refresh_interval=%ds, "
-        "refresh_model=%s, max_body=%.1f MiB, rasterize_pdf_models=%s, "
+        "litellm-headers-shim listening on :%d, target=%s, "
+        "max_body=%.1f MiB, rasterize_pdf_models=%s, "
         "strip_nul_pattern_models=%s",
-        LISTEN_PORT, LITELLM_URL, REFRESH_INTERVAL, REFRESH_MODEL,
+        LISTEN_PORT, LITELLM_URL,
         MAX_BODY_BYTES / 1024 / 1024,
         ",".join(sorted(RASTERIZE_PDF_MODELS)) or "(none)",
         ",".join(sorted(STRIP_NUL_PATTERN_MODELS)) or "(none)",

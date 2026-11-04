@@ -27,7 +27,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # LiteLLM with three source patches (see patched/README.md). The FROM line
+  # LiteLLM with four source patches (see patched/README.md). The FROM line
   # in patched/Dockerfile pins the upstream digest. The first start of a new
   # LiteLLM version migrates the Postgres schema, so pg_dump before a bump.
   litellm:
@@ -53,14 +53,10 @@ services:
     command: ["--config", "/app/config.yaml", "--port", "4000"]
 
   # The client-facing endpoint. It proxies everything to LiteLLM and does
-  # three jobs on the way:
-  # 1. Puts back the anthropic-ratelimit-* response headers that LiteLLM
-  #    drops, so the Claude Code statusline shows 5h / 7d usage. It makes a
-  #    1-token Haiku call every REFRESH_INTERVAL seconds with the last seen
-  #    login token.
-  # 2. Turns a PDF into page images for the models in RASTERIZE_PDF_MODELS.
+  # two jobs on the way. It makes no calls of its own to any provider.
+  # 1. Turns a PDF into page images for the models in RASTERIZE_PDF_MODELS.
   #    OpenCode Go refuses a PDF file part. Never add an Anthropic model.
-  # 3. Removes `\0` regex patterns from tool schemas for the models in
+  # 2. Removes `\0` regex patterns from tool schemas for the models in
   #    STRIP_NUL_PATTERN_MODELS. Go answers 400 to the Artifact tool's schema,
   #    which interactive sessions send. GLM and GPT-6 Luna accept it, so
   #    they are not in the list.
@@ -72,8 +68,6 @@ services:
     environment:
       LITELLM_URL: http://litellm:4000
       LISTEN_PORT: "4001"
-      REFRESH_MODEL: claude-haiku-4-5
-      REFRESH_INTERVAL: "45"
       RASTERIZE_PDF_MODELS: "deepseek-v4.1-flash-low,deepseek-v4.1-flash-high,deepseek-v4.1-flash-max"
       STRIP_NUL_PATTERN_MODELS: "deepseek-v4.1-flash-low,deepseek-v4.1-flash-none,deepseek-v4.1-flash-high,deepseek-v4.1-flash-max,muse-spark-1.3"
     # Plain HTTP on all interfaces. If the reverse proxy runs on this host,

@@ -14,6 +14,11 @@ For anything about PDFs, read [docs/pdf-handling.md](./docs/pdf-handling.md).
 
 ## Rules
 
+- **One person only.** This setup is for the user's own login, own keys and own use. It
+  is not a shared gateway. If the user asks to give the gateway to other people (family,
+  team, friends), say that this setup does not support it, and point to "For one person
+  only" in [README.md](./README.md). Never give the master key or the gateway URL to
+  another person, and never connect a client other than Claude Code to the Claude models.
 - **Never put the gateway env in an auto-loaded settings file.** Claude Code loads
   `settings.json` and `settings.local.json` on its own (in `~/.claude/` and in each
   project's `.claude/`), and `managed-settings.json`. The gateway env there moves every
@@ -66,8 +71,9 @@ The last call must answer with a message. `MissingSessionID` means the session h
 not arrive.
 
 On the gateway host, also run [gateway/smoke.sh](./gateway/smoke.sh) with
-`LITELLM_MASTER_KEY` and `ANTHROPIC_OAUTH_TOKEN` set. It checks that the shim restores the
-subscription usage headers. It can take up to 2 minutes.
+`LITELLM_MASTER_KEY` set. It checks the shim and LiteLLM, and sends one GLM call through
+the shim. It does not use the Claude login token. Never send a scripted call with the
+Claude login token: only Claude Code itself uses it. The 5h / 7d usage check is in step 3.
 
 ## Step 2 - the client
 
@@ -115,7 +121,9 @@ Do all of these. A reply alone does not prove the route.
 5. On the gateway host, `docker compose -f gateway/docker-compose.yml logs litellm --since 10m` shows the calls, and no
    `unexpected keyword argument` and no 400s.
 6. If the user enabled the statusline: a `claude-lite` session on DeepSeek shows a
-   `Go 5h: ...` segment, and one on Opus shows `5h: ... | 7d: ...`.
+   `Go 5h: ...` segment, and one on Opus shows `5h: ... | 7d: ...` with numbers after the
+   first answer. `5h: -- | 7d: --` on Opus means the LiteLLM patch for the
+   `anthropic-ratelimit-*` headers does not run: rebuild with `--build`.
 
 Report what passed and what failed, with the error text.
 

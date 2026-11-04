@@ -1,6 +1,6 @@
 # Patched LiteLLM image
 
-[Dockerfile](./Dockerfile) builds `FROM ghcr.io/berriai/litellm:v1.106.2` (digest pinned) and applies three
+[Dockerfile](./Dockerfile) builds `FROM ghcr.io/berriai/litellm:v1.106.2` (digest pinned) and applies four
 source patches with [apply_patches.py](./apply_patches.py). The build fails if a patch no longer applies, or if
 an upstream fix that this setup depends on is gone.
 
@@ -12,11 +12,14 @@ Run the `docker compose` commands on this page from the `gateway/` folder.
 |---|---|---|
 | `llms/anthropic/pass_through/adapters/transformation.py` | An Anthropic `document` block (top level and inside a tool result) becomes an OpenAI `file` part, not an `image_url` with a `data:application/pdf` URI | Most providers refuse or misread a PDF sent as an image URL |
 | `litellm_core_utils/prompt_templates/common_utils.py` | `_is_image_url_part` also matches `file` | Upstream moves media out of a `tool` message into the next `user` message. Without this, a PDF stays in the `tool` message, where some providers turn it into ~200k tokens of base64 text |
+| `litellm_core_utils/core_helpers.py` | An upstream `anthropic-ratelimit-*` response header also goes to the client under its own name, not only as `llm_provider-anthropic-ratelimit-*` | Claude Code reads the 5h / 7d plan usage from `anthropic-ratelimit-unified-*`. These are the real values of the same response, as the [gateway protocol](https://code.claude.com/docs/en/llm-gateway-protocol) asks |
 | `types/llms/openai.py` | `ChatCompletionAnnotation.type` is `str`, not `Literal["url_citation"]` | A provider that adds a `file` annotation to its answer otherwise gets `500 Invalid response object` after the answer was generated |
 
-These patches matter only for PDFs that Claude Code sends (for example a `Read` of a PDF)
-to a non-Anthropic model. The Anthropic models use LiteLLM's native Anthropic path, which
-the patches do not touch.
+The `transformation.py`, `common_utils.py` and `openai.py` patches matter only for PDFs
+that Claude Code sends (for example a `Read` of a PDF) to a non-Anthropic model. The
+Anthropic models use LiteLLM's native Anthropic path, which those patches do not touch.
+The `core_helpers.py` patch matters only for the Anthropic models: Go sends no
+`anthropic-ratelimit-*` header.
 
 ## What the build also asserts (upstream fixes)
 

@@ -37,6 +37,9 @@ from litellm.litellm_core_utils.prompt_templates import common_utils as cu;\
 assert cu._is_image_url_part({'type': 'file'}), 'file hoist patch missing';\
 from litellm.types.llms.openai import ChatCompletionAnnotation as A;\
 assert A.__annotations__['type'] is str, 'annotation patch missing';\
+from litellm.litellm_core_utils.core_helpers import process_response_headers as prh;\
+h = prh({'anthropic-ratelimit-unified-5h-utilization': '0.1', 'x-other': '1'});\
+assert h.get('anthropic-ratelimit-unified-5h-utilization') == '0.1' and 'x-other' not in h, 'ratelimit header patch missing';\
 print('patched image verified')"
 RUN python -c "\
 import inspect;\

@@ -9,8 +9,8 @@ The quota segment depends on which subscription serves the session model:
   Max (direct, or claude-* through the gateway)
       5h: 12% (2h3m) | 7d: 4% (3d2h)
       From Claude Code's own `rate_limits` input. Through the gateway these exist
-      only because litellm-headers-shim re-injects the anthropic-ratelimit-*
-      headers (gateway/docker-compose.yml).
+      only because a LiteLLM patch passes the real anthropic-ratelimit-*
+      response headers through (gateway/patched/README.md).
 
   OpenCode Go (deepseek-v4.1-flash-*, glm-5.3-flash, gpt-6-luna,
   muse-spark-1.3 through the gateway)

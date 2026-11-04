@@ -26,7 +26,7 @@
 - **Stock LiteLLM is not enough.** With a plain LiteLLM and OpenCode Go, several things fail
   with no clear error: PDFs do not reach the model and it invents their content, the
   statusline loses the subscription usage, every interactive turn on some models answers
-  400, and calls hang after a Claude Code update. This repo holds the fixes: three LiteLLM
+  400, and calls hang after a Claude Code update. This repo holds the fixes: four LiteLLM
   patches, a small proxy (the headers shim) in front of LiteLLM, and the exact config. Each
   fix is explained in [docs/pitfalls.md](./docs/pitfalls.md) and
   [docs/pdf-handling.md](./docs/pdf-handling.md).
@@ -43,9 +43,9 @@ the steps and a check after each one. To do it by hand, follow the same file.
 | [CLAUDE.md](./CLAUDE.md) | The setup runbook: gateway, client, verification |
 | [gateway/docker-compose.yml](./gateway/docker-compose.yml) | Postgres, patched LiteLLM, headers shim |
 | [gateway/config.yaml](./gateway/config.yaml) | The models: 3 Claude, 4 DeepSeek effort aliases, GLM, GPT-6 Luna, Muse Spark |
-| [gateway/patched/](./gateway/patched/README.md) | LiteLLM v1.106.2 with three source patches, and build-time checks |
-| [gateway/headers-shim/](./gateway/headers-shim/server.py) | Restores the subscription usage headers, turns PDFs into images for DeepSeek, removes a tool-schema regex that DeepSeek and Muse refuse on Go |
-| [gateway/smoke.sh](./gateway/smoke.sh) | Checks that the shim restores the usage headers |
+| [gateway/patched/](./gateway/patched/README.md) | LiteLLM v1.106.2 with four source patches, and build-time checks |
+| [gateway/headers-shim/](./gateway/headers-shim/server.py) | A small proxy in front of LiteLLM. It turns PDFs into images for DeepSeek and removes a tool-schema regex that DeepSeek and Muse refuse on Go. It makes no calls of its own |
+| [gateway/smoke.sh](./gateway/smoke.sh) | Checks that the shim and LiteLLM are up and that a Go model answers through the shim. It uses no Claude login token |
 | [client/](./client/install.sh) | `claude-lite` wrappers (sh, PowerShell), the settings template, the installer, an optional statusline |
 | [docs/pitfalls.md](./docs/pitfalls.md) | Symptom, cause and fix for each known trap |
 | [docs/pdf-handling.md](./docs/pdf-handling.md) | How a PDF reaches each model, and why each step exists |
@@ -61,10 +61,32 @@ the steps and a check after each one. To do it by hand, follow the same file.
 | `muse-spark-1.3` | Muse Spark 1.3 | OpenCode Go, Responses API |
 | `deepseek-v4.1-flash-none`, `-low`, `-max` | none: type `/model <name>` | OpenCode Go |
 
+## For one person only
+
+This setup is for **one person**: your own Claude login and your own OpenCode Go key, for
+your own use. It is **not** a shared gateway for a family, a team or friends.
+
+- Do not give the gateway URL or the master key to another person.
+- Connect only Claude Code to the gateway. Do not send your Claude login through it from
+  another client or from a script.
+- If another person wants this setup, they run their own gateway with their own
+  subscriptions.
+
+Why:
+
+- The Anthropic [Consumer Terms](https://www.anthropic.com/legal/consumer-terms), section 2:
+  "You may not share your Account login information, Anthropic API key, or Account
+  credentials with anyone else or make your Account available to anyone else."
+- The OpenCode [Terms of Use](https://opencode.ai/legal/terms-of-service): "You will only
+  use the Services for your own internal use, and not on behalf of or for the benefit of
+  any third party, ...".
+- The gateway has one master key and one OpenCode Go key, and it cannot tell users apart.
+  Every user of the gateway uses your OpenCode Go subscription.
+
 ## Requirements
 
 - Claude Code, logged in with a Claude Pro or Max account. An Anthropic API key login is
-  not tested; the shim's usage headers need a subscription login.
+  not tested; the 5h / 7d usage numbers need a subscription login.
 - A Docker host for the gateway, and an HTTPS reverse proxy on your LAN or VPN. Do not
   expose the gateway to the internet: it forwards your Claude login token.
 - An OpenCode Go subscription and API key.

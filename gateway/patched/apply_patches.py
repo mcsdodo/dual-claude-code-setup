@@ -24,6 +24,7 @@ from pathlib import Path
 ADAPTER = "litellm/llms/anthropic/pass_through/adapters/transformation.py"
 COMMON_UTILS = "litellm/litellm_core_utils/prompt_templates/common_utils.py"
 OPENAI_TYPES = "litellm/types/llms/openai.py"
+CORE_HELPERS = "litellm/litellm_core_utils/core_helpers.py"
 
 EDITS = [
     # 1. Top-level user `document` -> OpenAI `file` part, not image_url.
@@ -147,6 +148,26 @@ class ChatCompletionAnnotation(TypedDict, total=False):
     passive metadata; an unrecognised kind is not a reason to discard the
     completion. Kept permissive rather than enumerating vendors.
     """
+''',
+    ),
+    # 6. Anthropic's ratelimit response headers also go back under their own
+    #    name. Upstream renames every provider header to `llm_provider-<name>`,
+    #    so Claude Code never sees `anthropic-ratelimit-unified-*` and the
+    #    5h / 7d usage is empty. These are the real values from the same
+    #    upstream response, which is what Claude Code's gateway protocol asks
+    #    for. The `llm_provider-` copy stays too.
+    (
+        CORE_HELPERS,
+        '''\
+    for k, v in response_headers.items():
+        if k in OPENAI_RESPONSE_HEADERS:  # return openai-compatible headers
+            openai_headers[k] = v
+''',
+        '''\
+    for k, v in response_headers.items():
+        # PATCHED: anthropic-ratelimit-* also passes through under its own name (patched/README.md).
+        if k in OPENAI_RESPONSE_HEADERS or k.lower().startswith("anthropic-ratelimit-"):
+            openai_headers[k] = v
 ''',
     ),
 ]
