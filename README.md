@@ -69,7 +69,7 @@ set up `claude-lite`. Step 4, the Remote Control server, is optional and does no
 
 | `/model` name | Picker row | Provider |
 |---|---|---|
-| `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5` | built-in Opus, Sonnet, Haiku | Anthropic, your subscription |
+| `claude-*` | built-in Anthropic models | Anthropic, your subscription |
 | `deepseek-v4.1-flash-high` | DeepSeek High | OpenCode Go |
 | `glm-5.3-flash` | GLM 5.3 Flash | OpenCode Go |
 | `gpt-6-luna` | GPT-6 Luna | OpenCode Go, Responses API |
