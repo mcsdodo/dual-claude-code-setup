@@ -2,7 +2,7 @@
 
 ## What and why
 
-**What.** Two Claude Code commands on one machine:
+**What.** Two Claude Code commands on one machine, and an optional always-on server:
 
 - **`claude`**: unchanged. Direct to Anthropic with your Claude subscription. Remote Control works.
 - **`claude-lite`**: the same Claude Code, with the same login, permissions, hooks and
@@ -10,8 +10,12 @@
   It adds DeepSeek V4.1 Flash, GLM 5.3 Flash, GPT-6 Luna and Muse Spark 1.3 on an
   [OpenCode Go](https://opencode.ai/docs/go) subscription. They show in the `/model` picker
   next to Opus, Sonnet and Haiku, and you can change model in the middle of a session.
+- **`claude-rc@<name>`** (optional, Linux): a systemd service that runs
+  `claude remote-control` for one directory. Start a session there from the Claude app or
+  claude.ai at any time, with no terminal open. It is plain `claude`, so it does not use the
+  gateway.
 
-![claude goes direct to Anthropic; claude-lite goes through the headers shim and LiteLLM to Anthropic or OpenCode Go](./docs/routes.svg)
+![claude and the claude-rc@ servers go direct to Anthropic, which connects them to the Claude app; claude-lite goes through the headers shim and LiteLLM to Anthropic or OpenCode Go](./docs/routes.svg)
 
 **Why.**
 
@@ -30,11 +34,20 @@
   patches, a small proxy (the headers shim) in front of LiteLLM, and the exact config. Each
   fix is explained in [docs/pitfalls.md](./docs/pitfalls.md) and
   [docs/pdf-handling.md](./docs/pdf-handling.md).
+- **A plain systemd unit for Remote Control breaks quietly.** The updater deletes the binary
+  that the server runs, so every phone session fails while `systemctl status` says
+  `active (running)`. The server also never adopts a new version, and a restart stops every
+  session on it. So the service comes with a launcher that keeps the binaries, a prune, and two
+  daily gates that update the server and the background daemon only when no session runs.
+  Details: [docs/remote-control.md](./docs/remote-control.md).
+
+![The claude-rc@ unit runs the launcher, which runs the newest usable binary; daily timers prune old binaries and restart the server or stop the background daemon only when no session runs](./docs/remote-control.svg)
 
 ## Set it up
 
 Give this folder to a coding agent and ask it to follow [CLAUDE.md](./CLAUDE.md). It has
-the steps and a check after each one. To do it by hand, follow the same file.
+the steps and a check after each one. To do it by hand, follow the same file. Steps 1 to 3
+set up `claude-lite`. Step 4, the Remote Control server, is optional and does not need them.
 
 ## What is in it
 
@@ -102,3 +115,7 @@ Why:
   non-Anthropic base URL.
 - A Claude Code `Read` of a PDF fails on GLM 5.3 Flash. See
   [docs/pdf-handling.md](./docs/pdf-handling.md).
+- The Remote Control server needs a full `claude auth login`. A long-lived token from
+  `claude setup-token` has only the inference scope, and Remote Control refuses it.
+- The server adopts a new Claude Code version only on a night with no session on it. A phone
+  session left open blocks the update, and the gate logs a warning after 7 days.

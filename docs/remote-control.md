@@ -6,6 +6,8 @@ start there. [../remote-control/](../remote-control/install.sh) runs it under sy
 is always available. This file explains the mechanism. The setup steps are in
 [../CLAUDE.md](../CLAUDE.md), step 4.
 
+![The claude-rc@ unit runs the launcher, which runs the newest usable binary; daily timers prune old binaries and restart the server or stop the background daemon only when no session runs](./remote-control.svg)
+
 The measurements are from Claude Code 2.1.246 to 2.1.322 on one Ubuntu 22.04 host (systemd
 249), where the server runs as root, unless a section says otherwise. The installer, the unit
 (up to the login check), the daemon gate, the prune and the verify script were also tested on

@@ -146,7 +146,8 @@ Steps 1 to 3 are not necessary for it.
    has another machine with the same hostname (for example the default `ubuntu`), ask for a
    unique one and set it with `hostnamectl set-hostname <name>`.
 2. As the user, in each directory: start `claude` once, accept the trust dialog, and exit.
-   Then run `claude auth login` once, if the user is not logged in.
+   Then run `claude auth login` once, if the user is not logged in. Do not use
+   `claude setup-token` or `CLAUDE_CODE_OAUTH_TOKEN`: Remote Control refuses those tokens.
 3. **Ask the user**: "Enable Remote Control for this user? Sessions from the Claude app and
    claude.ai will then run on this machine." The first `claude remote-control` asks the same
    question as `Enable Remote Control? (y/n)`, and a service cannot answer it. Only on a yes,

@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 904 470" role="img" aria-label="One Remote Control server per directory, kept on the newest binary" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">
+  <style>
+    .bg { fill: #ffffff; }
+    .ink { fill: #1f2328; }
+    .quiet { fill: #59636e; }
+    .edge { stroke: #8c959f; }
+    .arrowhead { fill: #8c959f; }
+    .box { fill: none; stroke: #8c959f; stroke-width: 1.25; }
+    .timer { fill: none; stroke: #8c959f; stroke-width: 1.25; stroke-dasharray: 4 3; }
+    .main { fill: #0969da; fill-opacity: 0.10; stroke: #0969da; stroke-width: 2; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .ink { fill: #e6edf3; }
+      .quiet { fill: #9198a1; }
+      .edge { stroke: #6e7681; }
+      .arrowhead { fill: #6e7681; }
+      .box, .timer { stroke: #6e7681; }
+      .main { fill: #4493f8; fill-opacity: 0.14; stroke: #4493f8; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0 0L10 5L0 10z"/>
+    </marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="904" height="470" rx="8"/>
+  <text class="ink" x="24" y="34" font-size="15" font-weight="600">One Remote Control server per directory, kept on the newest binary</text>
+
+  <!-- connectors -->
+  <g class="edge" fill="none" stroke-width="1.25">
+    <!-- top row: exec, exec, HTTPS -->
+    <path d="M224 106H260" marker-end="url(#arrow)"/>
+    <path d="M430 106H466" marker-end="url(#arrow)"/>
+    <path d="M668 106H710" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <!-- versions -> launcher, server -> sessions -->
+    <path d="M345 214V150" marker-end="url(#arrow)"/>
+    <path d="M566 150V214" marker-end="url(#arrow)"/>
+    <!-- timers -->
+    <path d="M124 346V150" marker-end="url(#arrow)"/>
+    <path d="M345 346V300" marker-end="url(#arrow)"/>
+    <path d="M784 346V300" marker-end="url(#arrow)"/>
+  </g>
+  <text class="quiet" x="353" y="186" font-size="11.5">selects the newest</text>
+  <text class="quiet" x="353" y="201" font-size="11.5">usable binary</text>
+  <text class="quiet" x="574" y="186" font-size="11.5">one child per</text>
+  <text class="quiet" x="574" y="201" font-size="11.5">phone session</text>
+  <text class="quiet" x="132" y="246" font-size="11.5">restarts it only</text>
+  <text class="quiet" x="132" y="262" font-size="11.5">with 0 sessions,</text>
+  <text class="quiet" x="132" y="278" font-size="11.5">then proves it:</text>
+  <text class="quiet" x="132" y="294" font-size="11.5">exe, Connected</text>
+  <text class="quiet" x="353" y="328" font-size="11.5">deletes unused</text>
+  <text class="quiet" x="792" y="328" font-size="11.5">stops it</text>
+
+  <!-- row 1 -->
+  <rect class="box" x="24" y="64" width="200" height="86" rx="8"/>
+  <text class="ink" x="124" y="90" text-anchor="middle" font-weight="600">claude-rc@&lt;name&gt;</text>
+  <text class="quiet" x="124" y="108" text-anchor="middle" font-size="11.5">systemd unit, User=&lt;you&gt;</text>
+  <text class="quiet" x="124" y="124" text-anchor="middle" font-size="11.5">cd RC_DIR, Restart=always</text>
+
+  <rect class="box" x="260" y="64" width="170" height="86" rx="8"/>
+  <text class="ink" x="345" y="90" text-anchor="middle" font-weight="600">~/.local/bin/claude</text>
+  <text class="quiet" x="345" y="108" text-anchor="middle" font-size="11.5">launcher, not a symlink:</text>
+  <text class="quiet" x="345" y="124" text-anchor="middle" font-size="11.5">the updater keeps</text>
+  <text class="quiet" x="345" y="140" text-anchor="middle" font-size="11.5">every version</text>
+
+  <rect class="main" x="466" y="64" width="200" height="86" rx="8"/>
+  <text class="ink" x="566" y="90" text-anchor="middle" font-weight="600">remote-control server</text>
+  <text class="quiet" x="566" y="108" text-anchor="middle" font-size="11.5">--spawn=same-dir</text>
+  <text class="quiet" x="566" y="124" text-anchor="middle" font-size="11.5">keeps the binary it</text>
+  <text class="quiet" x="566" y="140" text-anchor="middle" font-size="11.5">started on, forever</text>
+
+  <rect class="box" x="712" y="64" width="168" height="86" rx="8"/>
+  <text class="ink" x="796" y="90" text-anchor="middle" font-weight="600">Claude app, claude.ai</text>
+  <text class="quiet" x="796" y="108" text-anchor="middle" font-size="11.5">environment: folder name</text>
+  <text class="quiet" x="796" y="124" text-anchor="middle" font-size="11.5">device: the hostname</text>
+  <text class="quiet" x="796" y="140" text-anchor="middle" font-size="11.5">via Anthropic, login</text>
+
+  <!-- row 2 -->
+  <rect class="box" x="260" y="214" width="170" height="86" rx="8"/>
+  <text class="ink" x="345" y="240" text-anchor="middle" font-weight="600">versions/&lt;v&gt;</text>
+  <text class="quiet" x="345" y="258" text-anchor="middle" font-size="11.5">one binary per release</text>
+  <text class="quiet" x="345" y="274" text-anchor="middle" font-size="11.5">about 340 MB each</text>
+
+  <rect class="box" x="466" y="214" width="200" height="86" rx="8"/>
+  <text class="ink" x="566" y="240" text-anchor="middle" font-weight="600">phone sessions</text>
+  <text class="quiet" x="566" y="258" text-anchor="middle" font-size="11.5">in the cgroup of the unit:</text>
+  <text class="quiet" x="566" y="274" text-anchor="middle" font-size="11.5">a restart stops them all</text>
+
+  <rect class="box" x="688" y="214" width="192" height="86" rx="8"/>
+  <text class="ink" x="784" y="240" text-anchor="middle" font-weight="600">background daemon</text>
+  <text class="quiet" x="784" y="258" text-anchor="middle" font-size="11.5">claude --bg, claude agents</text>
+  <text class="quiet" x="784" y="274" text-anchor="middle" font-size="11.5">never upgrades behind</text>
+  <text class="quiet" x="784" y="290" text-anchor="middle" font-size="11.5">the launcher</text>
+
+  <!-- row 3: timers -->
+  <rect class="timer" x="24" y="346" width="200" height="72" rx="8"/>
+  <text class="ink" x="124" y="370" text-anchor="middle" font-weight="600">claude-rc-autoupdate@</text>
+  <text class="quiet" x="124" y="388" text-anchor="middle" font-size="11.5">timer, daily 04:30</text>
+  <text class="quiet" x="124" y="404" text-anchor="middle" font-size="11.5">+ claude-rc-restart-verify</text>
+
+  <rect class="timer" x="260" y="346" width="170" height="72" rx="8"/>
+  <text class="ink" x="345" y="370" text-anchor="middle" font-weight="600">claude-prune-versions</text>
+  <text class="quiet" x="345" y="388" text-anchor="middle" font-size="11.5">timer, daily 00:00</text>
+  <text class="quiet" x="345" y="404" text-anchor="middle" font-size="11.5">keeps 2 newest + in use</text>
+
+  <rect class="timer" x="688" y="346" width="192" height="72" rx="8"/>
+  <text class="ink" x="784" y="370" text-anchor="middle" font-weight="600" font-size="12.5">claude-daemon-autoupdate</text>
+  <text class="quiet" x="784" y="388" text-anchor="middle" font-size="11.5">timer, daily 04:30</text>
+  <text class="quiet" x="784" y="404" text-anchor="middle" font-size="11.5">only with 0 bg sessions</text>
+
+  <text class="quiet" x="24" y="448" font-size="11.5">Dashed: systemd timers. They log to /var/log/claude-*.log and send nothing off the machine.</text>
+</svg>
