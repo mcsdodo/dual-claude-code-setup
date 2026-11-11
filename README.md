@@ -47,6 +47,8 @@ the steps and a check after each one. To do it by hand, follow the same file.
 | [gateway/headers-shim/](./gateway/headers-shim/server.py) | A small proxy in front of LiteLLM. It turns PDFs into images for DeepSeek and removes a tool-schema regex that DeepSeek and Muse refuse on Go. It makes no calls of its own |
 | [gateway/smoke.sh](./gateway/smoke.sh) | Checks that the shim and LiteLLM are up and that a Go model answers through the shim. It uses no Claude login token |
 | [client/](./client/install.sh) | `claude-lite` wrappers (sh, PowerShell), the settings template, the installer, an optional statusline |
+| [remote-control/](./remote-control/install.sh) | Optional: a systemd service that keeps a Remote Control server for `claude` running, with a launcher and daily version gates that keep it working across Claude Code updates |
+| [docs/remote-control.md](./docs/remote-control.md) | How the Remote Control server works, and why each part exists |
 | [docs/pitfalls.md](./docs/pitfalls.md) | Symptom, cause and fix for each known trap |
 | [docs/pdf-handling.md](./docs/pdf-handling.md) | How a PDF reaches each model, and why each step exists |
 
@@ -90,6 +92,7 @@ Why:
 - A Docker host for the gateway, and an HTTPS reverse proxy on your LAN or VPN. Do not
   expose the gateway to the internet: it forwards your Claude login token.
 - An OpenCode Go subscription and API key.
+- For the optional Remote Control server: Linux with systemd and cgroup v2, root, and `jq`.
 - Linux or macOS for the installer. Windows works with
   [client/claude-lite.ps1](./client/claude-lite.ps1) and a manual settings file.
 

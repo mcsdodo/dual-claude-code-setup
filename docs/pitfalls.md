@@ -35,6 +35,32 @@ measured on a running setup. The versions: LiteLLM v1.106.2 (patched, see
 | An old LiteLLM image does not start after a rollback | The new version migrated the Postgres schema | `pg_dump` before every bump; restore it to roll back ([../gateway/patched/README.md](../gateway/patched/README.md)) |
 | LiteLLM's spend view shows small costs for Claude | Anthropic answers with dated model IDs, which skip the `cost_per_token: 0` override | Ignore. Token counts are correct |
 
+## Remote Control server
+
+The mechanism behind each row: [remote-control.md](./remote-control.md). Claude Code 2.1.246 to
+2.1.322, systemd 249.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The unit is `active (running)`, but every phone session fails to start (`ENOENT` in the journal) | The updater deleted the old binary, and the server still executes it. `readlink /proc/<MainPID>/exe` ends in ` (deleted)` | The launcher (`install.sh --launcher`) stops the updater's cleanup. `claude-prune-versions` cleans up instead |
+| A new model or flag works in a terminal, not from the phone | The server runs the binary it started on, days or weeks old. `claude --version` shows the newest binary, not the server's | The 04:30 gate restarts the server when it has no session. Read the server's version from `/proc/<MainPID>/exe` |
+| The 04:30 gate never restarts | A phone session stays attached, or a background daemon runs in the unit's cgroup | Archive the session in the app, or run `claude daemon stop --any`. After 7 days the gate logs a `WARN:` line with the PIDs |
+| A background session fails: `Claude Code <old> does not support this model`, or `unknown option` in `~/.claude/daemon.log` | The background daemon never upgrades behind the launcher | `claude-daemon-autoupdate` (04:30), or `claude daemon stop --any` |
+| Remote Control fails in the service, but works in a terminal as the same user | systemd sets no `HOME` for a system service without `User=` (measured: `HOME=[]` with `systemd-run`), and Claude Code needs it to find `~/.claude/.credentials.json` | The unit sets `Environment=HOME=` |
+| `Restart=always` does not restart a stopped server | `ExecStart` runs a shell, and the shell is still alive | `exec` in front of `claude` in `ExecStart` |
+| The unit restarts every 15 s: `Remote Control did not start: "Enable Remote Control?" got no answer` | The first `claude remote-control` asks for consent, and a service has no terminal (measured on 2.1.322) | `install.sh --enable-remote-control` (only when the user agrees), or as the user run `claude remote-control` once in a terminal and answer `y`. Both set `remoteDialogSeen: true` in `~/.claude.json` |
+| Two machines have the same name in the app | The app shows the hostname as the device name. `RC_NAME` (`--name`) names only the session | A unique hostname on each machine (`hostnamectl set-hostname`), then restart the server |
+| The server starts, opens no socket and waits forever | On the first run in a project it waits on an interactive spawn-mode prompt | `--spawn=same-dir` |
+| The unit restarts in a loop after a night with no use | `-c`/`--continue` fails in server mode when nothing was recorded in the last ~4h | Do not use `-c` |
+| The journal grows about 432k lines per day | The server repaints its TUI status block once a second, also with no terminal | `LogRateLimitBurst=50` per 60 s in the unit |
+| `claude --bg` in the directory fails with `Workspace not trusted` | The directory is not trusted. The server needs a trusted `RC_DIR` too (what it does in one that is not trusted is not measured) | Start `claude` there once as the user and accept the dialog. `install.sh` warns about it |
+| `claude remote-control --help` never returns | On 2.1.301 it printed nothing and ran as a server | Do not run it |
+| A `systemctl restart` from a phone session stops the session before it can check the result | `KillMode=control-group`: the restart stops every session of the server | `systemd-run --on-active=90 ... claude-rc-restart-verify` ([remote-control.md](./remote-control.md)) |
+| A `systemd-run` restart job stops after 90 s with no result | A transient unit gets the 90 s default start timeout | `--property=TimeoutStartSec=600` |
+| A phone session is missing from `/resume` | `/resume` hides every `sdk-cli` session | `claude-rc-sessions`, then `claude --resume <uuid>` |
+| A phone session has no Artifact tool | Open bug #88731 | `"env": {"CLAUDE_CODE_ARTIFACT": "1"}` in `~/.claude/settings.json` |
+| Remote Control stops for the server | The gateway env is in `~/.claude/settings.json`, which the server reads | Keep it only in `~/.claude/litellm-settings.json`. `install.sh` warns about it |
+
 ## Models and PDFs
 
 The whole PDF path, and the status per model: [pdf-handling.md](./pdf-handling.md).

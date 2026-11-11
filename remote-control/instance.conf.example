@@ -1,0 +1,12 @@
+# Instance config for claude-rc@<name>.service, installed as /etc/claude-rc/<name>.conf.
+# install.sh writes it from --instance <name>=<dir> only when the file does not
+# exist, so an edit here on the host stays.
+#
+# RC_DIR: the directory a phone session starts in. It must be trusted
+# (accept the trust dialog once in an interactive `claude` there).
+RC_DIR=/home/alice/projects/example
+# RC_NAME: passed as --name, "Name for the session (shown in claude.ai/code)".
+# The environment in the app shows the directory name, not RC_NAME.
+RC_NAME=example
+# RC_PERMISSION_MODE: the permission mode of each phone session.
+RC_PERMISSION_MODE=default

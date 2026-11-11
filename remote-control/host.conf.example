@@ -1,0 +1,8 @@
+# /etc/claude-rc/host.conf. Read by every root script of the Remote Control
+# server (the gates, the verify script, the prune).
+# install.sh writes it from --user only when it does not exist.
+
+# The user that runs Claude Code and the RC server.
+CLAUDE_USER=alice
+CLAUDE_HOME=/home/alice
+

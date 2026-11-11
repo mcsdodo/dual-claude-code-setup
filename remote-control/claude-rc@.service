@@ -1,0 +1,46 @@
+# Template unit: one Remote Control server per directory.
+# remote-control/install.sh fills in @CLAUDE_USER@ and @CLAUDE_HOME@ and copies
+# the result to /etc/systemd/system/. User= cannot come from EnvironmentFile=.
+# Edit this file and run install.sh again. An edit made only in /etc is lost on
+# the next install.
+[Unit]
+Description=Claude Code Remote Control server (%i)
+Documentation=https://code.claude.com/docs/en/remote-control
+After=network-online.target
+Wants=network-online.target
+# StartLimit* go in [Unit], not [Service] (moved in systemd v230).
+# 0 disables the limit: a multi-hour outage must never leave the unit `failed`
+# with nothing left to restart it.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@CLAUDE_USER@
+EnvironmentFile=/etc/claude-rc/%i.conf
+# Claude Code needs HOME to find ~/.claude/.credentials.json, or Remote Control
+# fails. systemd does not set HOME for a system service without User= (measured:
+# HOME=[] via systemd-run). Set it here, so the unit does not depend on that rule.
+Environment=HOME=@CLAUDE_HOME@
+Environment=PATH=@CLAUDE_HOME@/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Explicit UTF-8: without it non-ASCII text in prompts and file names can break.
+Environment=LANG=C.UTF-8
+Environment=LC_ALL=C.UTF-8
+# WorkingDirectory= does not expand env vars, so the cd is in the shell.
+# `exec` is necessary: without it systemd tracks the shell, not Claude Code,
+# and Restart=always does not see the real process exit.
+# --spawn=same-dir is necessary: on the first run in a project the server
+# otherwise waits forever on an interactive spawn-mode prompt, with no sockets open.
+# No -c/--continue: in server mode it fails if nothing was recorded in the last
+# ~4h, and under Restart=always that is a crash loop after any long outage.
+ExecStart=/bin/sh -c 'cd "$RC_DIR" && exec @CLAUDE_HOME@/.local/bin/claude remote-control --spawn=same-dir --permission-mode "$RC_PERMISSION_MODE" --name "$RC_NAME"'
+Restart=always
+RestartSec=15
+# Server mode repaints its TUI status block about once a second with no tty
+# attached: measured at ~300 journal lines/min (~432k/day). The burst lets the
+# startup lines through ("Ready", the environment URL, "Connected", errors), then
+# throttles the repaint; journald notes how many lines it suppressed.
+LogRateLimitIntervalSec=60s
+LogRateLimitBurst=50
+
+[Install]
+WantedBy=multi-user.target

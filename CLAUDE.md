@@ -7,6 +7,8 @@ You set up two commands on a machine:
 | `claude` | direct to `api.anthropic.com`, the user's Claude subscription | yes |
 | `claude-lite` | through a LiteLLM gateway: Claude models with the same login, plus DeepSeek V4.1 Flash, GLM 5.3 Flash, GPT-6 Luna and Muse Spark 1.3 on OpenCode Go | no, by design |
 
+Step 4 is optional: it keeps a Remote Control server for `claude` running under systemd.
+
 The gateway can run on the same machine or on another host. Do the steps in order. Do not
 go to the next step until its check passes. If a check fails, read
 [docs/pitfalls.md](./docs/pitfalls.md) first: most failures in this setup give no clear error.
@@ -127,6 +129,67 @@ Do all of these. A reply alone does not prove the route.
 
 Report what passed and what failed, with the error text.
 
+## Step 4 - Remote Control server (optional)
+
+Do this step only if the user wants `claude` sessions from the Claude mobile app or claude.ai
+at any time, with no terminal open. It runs `claude remote-control` as a systemd service, one
+server for each directory. The mechanism and every measured fact are in
+[docs/remote-control.md](./docs/remote-control.md). Read it before you change anything in
+[remote-control/](./remote-control/install.sh).
+
+Needs: Linux with systemd and cgroup v2, root (sudo), `jq`, and a `claude` installed with the
+native installer by the user who will run the server. The server does not use the gateway.
+Steps 1 to 3 are not necessary for it.
+
+1. **Ask the user** for the directories that the phone may start sessions in, and a short name
+   for each (letters, digits, `-`, `_`). The app shows the machine by its hostname. If the user
+   has another machine with the same hostname (for example the default `ubuntu`), ask for a
+   unique one and set it with `hostnamectl set-hostname <name>`.
+2. As the user, in each directory: start `claude` once, accept the trust dialog, and exit.
+   Then run `claude auth login` once, if the user is not logged in.
+3. **Ask the user**: "Enable Remote Control for this user? Sessions from the Claude app and
+   claude.ai will then run on this machine." The first `claude remote-control` asks the same
+   question as `Enable Remote Control? (y/n)`, and a service cannot answer it. Only on a yes,
+   add `--enable-remote-control` in the next step. It sets the same key as that `y`. Without
+   it the service exits with `"Enable Remote Control?" got no answer`.
+4. Review, then install. `--launcher` is necessary: without it, the updater deletes the binary
+   that the server runs.
+   ```bash
+   sudo sh remote-control/install.sh --dry-run --user "$USER" --instance <name>=<dir> --launcher --enable-remote-control
+   sudo sh remote-control/install.sh --user "$USER" --instance <name>=<dir> --launcher --enable-remote-control
+   ```
+   Repeat `--instance` for more directories. Each one is `claude-rc@<name>` and
+   `/etc/claude-rc/<name>.conf`. Read every `WARNING:` line in the output and fix it.
+5. Start each server: `sudo systemctl start claude-rc@<name>`.
+
+**Check.** `systemctl status` is not a check: it says `active (running)` also when every
+session spawn fails.
+
+```bash
+P=$(systemctl show claude-rc@<name> -p MainPID --value); readlink /proc/$P/exe
+# expect: <home>/.local/share/claude/versions/<version>, with no " (deleted)"
+sudo journalctl -u claude-rc@<name> --since "5 min ago" -o cat \
+  | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\x1b\][^\x07]*\x07//g' | grep -m1 Connected
+claude --version      # the launcher; doctor warns about it, that is expected
+sudo claude-rc-autoupdate <name> --check      # logs a decision, restarts nothing
+sudo claude-daemon-autoupdate --check         # logs a decision, stops nothing
+systemctl list-timers 'claude-*'              # prune 00:00, both gates 04:30
+```
+
+Then ask the user to open the Claude app, select the environment with the directory name of
+`<dir>` (not `<name>`: `--name` only names the session), start a session and
+ask "List the files in this folder." It must run a tool and answer.
+
+Rules for this step:
+
+- **Never `systemctl restart claude-rc@<name>`** from a session that may run inside it. A restart
+  stops every session in the unit, and you with it. Use the `systemd-run` form in
+  [docs/remote-control.md](./docs/remote-control.md).
+- **Do not run `claude remote-control --help`.** It can start a server and not return.
+- **Do not put the symlink back** when `claude doctor` reports the launcher.
+- Phone sessions have no Artifact tool unless `~/.claude/settings.json` has
+  `"env": {"CLAUDE_CODE_ARTIFACT": "1"}`. That changes `settings.json`, so ask the user first.
+
 ## Later changes
 
 - **A new Claude Code release** can add a top-level request field. The symptom: a Go call
@@ -144,3 +207,12 @@ Report what passed and what failed, with the error text.
   [client/statusline.py](./client/statusline.py). Then do step 3 again.
 - **A LiteLLM version bump:** follow [gateway/patched/README.md](./gateway/patched/README.md).
   Take a `pg_dump` first.
+- **A new directory for Remote Control:** trust it as the user, then
+  `sudo sh remote-control/install.sh --instance <name>=<dir>` and
+  `sudo systemctl start claude-rc@<name>`.
+- **A change in [remote-control/](./remote-control/install.sh):** edit the repo file and run
+  `sudo sh remote-control/install.sh` again. It does not restart a running server. A unit change
+  reaches the server at its next restart, normally the 04:30 gate.
+- **A new Claude Code version for the server:** nothing to do. The 04:30 gate adopts it on the
+  first night that the server has no session. To see every process and its version, run
+  `sudo claude-instances`.
